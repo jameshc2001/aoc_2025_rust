@@ -1,75 +1,91 @@
+const MULTIPLY: char = '*';
+const ADD: char = '+';
 
 fn grand_total(input: &str) -> i64 {
     let (operations, numbers) = parse_input(input);
 
-    let mut result = 0;
-    for i in 0..numbers[0].len() {
-        let mut current_result = if operations[i] == '*' { 1 } else { 0 };
-        for j in 0..numbers.len() {
-            if operations[i] == '*' {
-                current_result = current_result * numbers[j][i];
+    (0..numbers[0].len())
+        .map(|i| {
+            let op = operations[i];
+            let (init, combine): (i64, fn(i64, i64) -> i64) = if op == MULTIPLY {
+                (1, |a, b| a * b)
             } else {
-                current_result = current_result + numbers[j][i];
-            }
-        }
-        result += current_result;
-    }
-
-    result
+                (0, |a, b| a + b)
+            };
+            numbers.iter().map(|row| row[i]).fold(init, combine)
+        })
+        .sum()
 }
 
 fn parse_input(input: &str) -> (Vec<char>, Vec<Vec<i64>>) {
-    let lines = input.lines().collect::<Vec<&str>>();
+    let lines: Vec<_> = input.lines().collect();
 
-    let numbers = lines[0..lines.len() - 1].iter()
-        .map(|line| line.split_whitespace()
-            .map(|number| number.parse::<i64>().unwrap())
-            .collect::<Vec<i64>>()
-        )
-        .collect::<Vec<Vec<i64>>>();
+    let (last_line, number_lines) = lines.split_last()
+        .expect("Input must have at least one line");
 
-    let operations = lines[lines.len() - 1].split_whitespace()
+    let numbers: Vec<Vec<i64>> = number_lines.iter()
+        .map(|line| {
+            line.split_whitespace()
+                .map(|num| num.parse().expect("Invalid number"))
+                .collect()
+        })
+        .collect();
+
+    let operations: Vec<char> = last_line
+        .split_whitespace()
         .filter_map(|token| token.chars().next())
-        .collect::<Vec<char>>();
+        .collect();
 
     (operations, numbers)
 }
 
 fn correct_grand_total(input: &str) -> i64 {
-    let lines: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
-    let max_length = lines.iter().map(|line| line.len()).max().unwrap();
+    let lines: Vec<Vec<char>> = input
+        .lines()
+        .map(|line| line.chars().collect())
+        .collect();
 
-    let transposed = (0..max_length)
+    let max_length = lines.iter()
+        .map(|line| line.len())
+        .max()
+        .unwrap_or(0);
+
+    let transposed: Vec<String> = (0..max_length)
         .rev()
         .map(|col| {
-            (0..lines.len())
-                .map(|row| lines[row].get(col).unwrap_or(&' '))
+            lines.iter()
+                .filter_map(|row| row.get(col))
                 .collect::<String>()
                 .trim()
                 .to_string()
         })
-        .collect::<Vec<String>>();
+        .collect();
 
-    let mut total_result = 0;
-    let mut buffer: Vec<i64> = Vec::new();
+    let mut total = 0i64;
+    let mut buffer = Vec::new();
 
     for line in transposed {
         if let Ok(num) = line.parse::<i64>() {
             buffer.push(num);
-        } else if line.contains("*") || line.contains("+") {
-            buffer.push(line[0..line.len() - 1].trim().parse::<i64>().unwrap());
+        } else if let Some(op_pos) = line.rfind(|c| c == MULTIPLY || c == ADD) {
+            // Extract the number before the operator
+            if let Ok(num) = line[..op_pos].trim().parse::<i64>() {
+                buffer.push(num);
 
-            if line.contains("*") {
-                total_result += buffer.iter().fold(1, |acc, num| acc * num);
-            } else {
-                total_result += buffer.iter().fold(0, |acc, num| acc + num);
+                // Apply the operation
+                let op = line.chars().nth(op_pos).unwrap();
+                let result = match op {
+                    MULTIPLY => buffer.iter().product::<i64>(),
+                    ADD => buffer.iter().sum::<i64>(),
+                    _ => unreachable!(),
+                };
+                total += result;
+                buffer.clear();
             }
-
-            buffer.clear();
         }
     }
 
-    total_result
+    total
 }
 
 #[cfg(test)]
