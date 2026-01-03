@@ -1,42 +1,43 @@
 use std::collections::{HashSet, VecDeque};
 
 fn beam_splits(input: &str) -> i32 {
-
-    let end: i32 = input.lines().count() as i32;
+    let grid_height: i32 = input.lines().count() as i32;
 
     let mut beams: VecDeque<(i32, i32)> = VecDeque::new();
     let mut splitters: HashSet<(i32, i32)> = HashSet::new();
 
-    input.lines().enumerate().for_each(|(y, line)| {
-        line.chars().enumerate().for_each(|(x, ch)| {
-            if ch == 'S' { beams.push_back((x as i32, y as i32)); }
-            else if ch == '^' { splitters.insert((x as i32, y as i32)); }
-        })
-    });
-
-    let mut splits = 0;
-    let mut visited: HashSet<(i32, i32)> = HashSet::new();
-
-    while let Some(beam) = beams.pop_front() {
-        let new_beam = (beam.0, beam.1 + 1);
-        if new_beam.1 >= end {
-            continue;
-        } else if splitters.contains(&new_beam) {
-            splits += 1;
-            insert_beam(&mut beams, &mut visited, (new_beam.0 - 1, new_beam.1));
-            insert_beam(&mut beams, &mut visited, (new_beam.0 + 1, new_beam.1));
-        } else {
-            insert_beam(&mut beams, &mut visited, new_beam);
+    for (y, line) in input.lines().enumerate() {
+        for (x, ch) in line.chars().enumerate() {
+            if ch == 'S' {
+                beams.push_back((x as i32, y as i32));
+            } else if ch == '^' {
+                splitters.insert((x as i32, y as i32));
+            }
         }
     }
 
-    splits
+    let mut split_count = 0;
+    let mut visited: HashSet<(i32, i32)> = HashSet::new();
+
+    while let Some(beam) = beams.pop_front() {
+        let next_pos = (beam.0, beam.1 + 1);
+        if next_pos.1 >= grid_height {
+            continue;
+        } else if splitters.contains(&next_pos) {
+            split_count += 1;
+            insert_beam(&mut beams, &mut visited, (next_pos.0 - 1, next_pos.1));
+            insert_beam(&mut beams, &mut visited, (next_pos.0 + 1, next_pos.1));
+        } else {
+            insert_beam(&mut beams, &mut visited, next_pos);
+        }
+    }
+
+    split_count
 }
 
 fn insert_beam(beams: &mut VecDeque<(i32, i32)>, visited: &mut HashSet<(i32, i32)>, beam: (i32, i32)) {
-    if !visited.contains(&beam) {
+    if visited.insert(beam) {
         beams.push_back(beam);
-        visited.insert(beam);
     }
 }
 
