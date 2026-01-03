@@ -6,6 +6,12 @@ fn beam_splits(input: &str) -> i64 {
     let mut split_count = 0;
     let mut visited: HashSet<(i64, i64)> = HashSet::new();
 
+    fn insert_beam(beams: &mut VecDeque<(i64, i64)>, visited: &mut HashSet<(i64, i64)>, beam: (i64, i64)) {
+        if visited.insert(beam) {
+            beams.push_back(beam);
+        }
+    }
+
     while let Some(beam) = beams.pop_front() {
         let next_pos = (beam.0, beam.1 + 1);
         if next_pos.1 >= grid_height {
@@ -20,12 +26,6 @@ fn beam_splits(input: &str) -> i64 {
     }
 
     split_count
-}
-
-fn insert_beam(beams: &mut VecDeque<(i64, i64)>, visited: &mut HashSet<(i64, i64)>, beam: (i64, i64)) {
-    if visited.insert(beam) {
-        beams.push_back(beam);
-    }
 }
 
 //According to claude the recursive version is more idiomatic
