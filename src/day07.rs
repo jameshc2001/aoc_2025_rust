@@ -28,6 +28,7 @@ fn insert_beam(beams: &mut VecDeque<(i64, i64)>, visited: &mut HashSet<(i64, i64
     }
 }
 
+//According to claude the recursive version is more idiomatic
 fn timelines(input: &str) -> i64 {
     let (grid_height, mut beams, splitters) = parse_input(input);
     let mut memory: HashMap<(i64, i64), i64> = HashMap::new();
@@ -59,6 +60,56 @@ fn timelines(input: &str) -> i64 {
 
     let start = beams.pop_front().unwrap();
     timelines_for_particle(start, grid_height, &splitters, &mut memory)
+}
+
+fn timelines_iterative(input: &str) -> i64 {
+    let (grid_height, mut beams, splitters) = parse_input(input);
+    let mut memory: HashMap<(i64, i64), i64> = HashMap::new();
+
+    enum Task {
+        Compute((i64, i64)),
+        Combine { particle: (i64, i64), left: (i64, i64), right: (i64, i64) },
+        Store { particle: (i64, i64), child: (i64, i64) },
+    }
+
+    let start = beams.pop_front().unwrap();
+    let mut stack = vec![Task::Compute(start)];
+
+    while let Some(task) = stack.pop() {
+        match task {
+            Task::Compute(particle) => {
+                if memory.contains_key(&particle) {
+                    continue;
+                }
+
+                let next_pos = (particle.0, particle.1 + 1);
+
+                if next_pos.1 > grid_height {
+                    memory.insert(particle, 1);
+                } else if splitters.contains(&next_pos) {
+                    let left = (next_pos.0 - 1, next_pos.1);
+                    let right = (next_pos.0 + 1, next_pos.1);
+
+                    stack.push(Task::Combine { particle, left, right });
+                    stack.push(Task::Compute(right));
+                    stack.push(Task::Compute(left));
+                } else {
+                    stack.push(Task::Store { particle, child: next_pos });
+                    stack.push(Task::Compute(next_pos));
+                }
+            }
+            Task::Combine { particle, left, right } => {
+                let result = memory[&left] + memory[&right];
+                memory.insert(particle, result);
+            }
+            Task::Store { particle, child } => {
+                let result = memory[&child];
+                memory.insert(particle, result);
+            }
+        }
+    }
+
+    memory[&start]
 }
 
 fn parse_input(input: &str) -> (i64, VecDeque<(i64, i64)>, HashSet<(i64, i64)>) {
@@ -105,6 +156,12 @@ mod tests {
     fn part_2() {
         let input = fs::read_to_string("inputs/day07.txt").unwrap();
         assert_eq!(day07::timelines(input.as_str()), 47274292756692)
+    }
+
+    #[test]
+    fn part_2_iterative() {
+        let input = fs::read_to_string("inputs/day07.txt").unwrap();
+        assert_eq!(day07::timelines_iterative(input.as_str()), 47274292756692)
     }
 
     const SAMPLE_INPUT: &str = ".......S.......
