@@ -1,5 +1,77 @@
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+struct UnionFind<'a> {
+    node_to_parent: HashMap<&'a (i64, i64, i64), &'a (i64, i64, i64)>,
+    node_to_size: HashMap<&'a (i64, i64, i64), i64>,
+}
+
+impl<'a> UnionFind<'a> {
+    fn new() -> Self {
+        UnionFind {
+            node_to_parent: HashMap::new(),
+            node_to_size: HashMap::new(),
+        }
+    }
+
+    // Find the root of the set containing the node
+    fn find(&mut self, node: &'a (i64, i64, i64)) -> &'a (i64, i64, i64) {
+        // Initialize if not seen before
+        if !self.node_to_parent.contains_key(&node) {
+            self.node_to_parent.insert(node, node);
+            self.node_to_size.insert(node, 1);
+            return node;
+        }
+
+        // Path compression: make each node point directly to the root
+        if self.node_to_parent[&node] != node {
+            let root = self.find(self.node_to_parent[&node]);
+            self.node_to_parent.insert(node, root);
+        }
+
+        // Will always return root due to path compression above
+        self.node_to_parent[node]
+    }
+
+    // Union by size: attach the smaller tree to the larger one
+    fn union(&mut self, a: &'a (i64, i64, i64), b: &'a (i64, i64, i64)) -> bool {
+        let root_a = self.find(a);
+        let root_b = self.find(b);
+
+        if root_a == root_b {
+            return false; // Already in the same set
+        }
+
+        let size_a = self.node_to_size[root_a];
+        let size_b = self.node_to_size[root_b];
+
+        if size_a < size_b {
+            self.node_to_parent.insert(root_a, root_b);
+            self.node_to_size.insert(root_b, size_a + size_b);
+        } else {
+            self.node_to_parent.insert(root_b, root_a);
+            self.node_to_size.insert(root_a, size_a + size_b);
+        }
+
+        true // Successfully merged
+    }
+
+    fn get_size(&mut self, node: &'a (i64, i64, i64)) -> i64 {
+        let root = self.find(node);
+        self.node_to_size[root]
+    }
+
+    fn get_component_sizes(&mut self) -> Vec<i64> {
+        let mut roots: HashSet<&(i64, i64, i64)> = HashSet::new();
+        let nodes: Vec<_> = self.node_to_parent.keys().copied().collect();
+        for &node in &nodes {
+            let root = self.find(node);
+            roots.insert(root);
+        }
+        roots.iter().map(|node| self.get_size(node)).collect()
+    }
+}
+
 
 fn connect_junction_boxes(input: &str, limit: usize) -> i64 {
 
@@ -29,55 +101,18 @@ fn connect_junction_boxes(input: &str, limit: usize) -> i64 {
         .take(limit) //assumes that if we try to connect boxes already in a circuit, it counts as a 'connection'
         .collect();
 
-    let mut box_to_circuit: HashMap<&(i64, i64, i64), usize> = HashMap::new();
-    let mut circuit_to_size: HashMap<usize, i64> = HashMap::new();
-    let mut next_circuit_id: usize = 0;
-
+    let mut union_find = UnionFind::new();
     for (a, b) in unique_pairs_by_distance {
-        let a_circuit = box_to_circuit.get(&a).copied();
-        let b_circuit = box_to_circuit.get(&b).copied();
-
-        match (a_circuit, b_circuit) {
-            (Some(a_c), Some(b_c)) if a_c == b_c => {
-                //already in the same circuit, do nothing
-                continue;
-            }
-            (Some(a_c), Some(b_c)) => {
-                //both in different circuits, merge them
-                let b_c_size = circuit_to_size.remove(&b_c).unwrap();
-                circuit_to_size.insert(a_c, circuit_to_size.get(&a_c).unwrap() + b_c_size);
-                for (_, circuit) in box_to_circuit.iter_mut() {
-                    if *circuit == b_c {
-                        *circuit = a_c;
-                    }
-                }
-            }
-            (Some(a_c), None) => {
-                //a already in circuit, add b to it
-                box_to_circuit.insert(b, a_c);
-                circuit_to_size.insert(a_c, circuit_to_size.get(&a_c).unwrap() + 1);
-            }
-            (None, Some(b_c)) => {
-                //b already in circuit, add a to it
-                box_to_circuit.insert(a, b_c);
-                circuit_to_size.insert(b_c, circuit_to_size.get(&b_c).unwrap() + 1);
-            }
-            (None, None) => {
-                //neither a or b in a circuit, create one
-                box_to_circuit.insert(a, next_circuit_id);
-                box_to_circuit.insert(b, next_circuit_id);
-                circuit_to_size.insert(next_circuit_id, 2);
-                next_circuit_id += 1;
-            }
-        }
+        union_find.union(a, b);
     }
 
-    circuit_to_size
-        .values()
+    union_find
+        .get_component_sizes()
+        .iter()
         .sorted()
         .rev()
         .take(3)
-        .fold(1, |acc: i64, n| acc * *n)
+        .product()
 }
 
 #[cfg(test)]
