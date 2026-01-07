@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 struct UnionFind<'a> {
     node_to_parent: HashMap<&'a (i64, i64, i64), &'a (i64, i64, i64)>,
     node_to_size: HashMap<&'a (i64, i64, i64), i64>,
+    max_component_size: i64,
 }
 
 impl<'a> UnionFind<'a> {
@@ -11,6 +12,7 @@ impl<'a> UnionFind<'a> {
         UnionFind {
             node_to_parent: HashMap::new(),
             node_to_size: HashMap::new(),
+            max_component_size: 0,
         }
     }
 
@@ -20,6 +22,7 @@ impl<'a> UnionFind<'a> {
         if !self.node_to_parent.contains_key(&node) {
             self.node_to_parent.insert(node, node);
             self.node_to_size.insert(node, 1);
+            self.max_component_size = self.max_component_size.max(1);
             return node;
         }
 
@@ -44,15 +47,17 @@ impl<'a> UnionFind<'a> {
 
         let size_a = self.node_to_size[root_a];
         let size_b = self.node_to_size[root_b];
+        let new_size = size_a + size_b;
 
         if size_a < size_b {
             self.node_to_parent.insert(root_a, root_b);
-            self.node_to_size.insert(root_b, size_a + size_b);
+            self.node_to_size.insert(root_b, new_size);
         } else {
             self.node_to_parent.insert(root_b, root_a);
-            self.node_to_size.insert(root_a, size_a + size_b);
+            self.node_to_size.insert(root_a, new_size);
         }
 
+        self.max_component_size = self.max_component_size.max(new_size);
         true // Successfully merged
     }
 
@@ -70,11 +75,44 @@ impl<'a> UnionFind<'a> {
         }
         roots.iter().map(|node| self.get_size(node)).collect()
     }
+
+    fn has_component_of_size(&self, size: &i64) -> bool {
+        self.max_component_size == *size
+    }
 }
 
-
 fn connect_junction_boxes(input: &str, limit: usize) -> i64 {
+    let (unique_pairs_by_distance, _) = parse_input(input);
 
+    let mut union_find = UnionFind::new();
+    for (a, b) in unique_pairs_by_distance.iter().take(limit) {
+        union_find.union(a, b);
+    }
+
+    union_find
+        .get_component_sizes()
+        .iter()
+        .sorted()
+        .rev()
+        .take(3)
+        .product()
+}
+
+fn connect_to_one_circuit(input: &str) -> i64 {
+    let (unique_pairs_by_distance, total_junction_boxes) = parse_input(input);
+
+    let mut union_find = UnionFind::new();
+    for (a, b) in unique_pairs_by_distance.iter() {
+        union_find.union(a, b);
+        if union_find.has_component_of_size(&(total_junction_boxes as i64)) {
+            return a.0 * b.0;
+        }
+    }
+
+    panic!("Couldn't connect junction boxes into a single circuit");
+}
+
+fn parse_input(input: &str) -> (Vec<((i64, i64, i64), (i64, i64, i64))>, usize) {
     let junction_boxes = input
         .lines()
         .map(|line| {
@@ -86,8 +124,9 @@ fn connect_junction_boxes(input: &str, limit: usize) -> i64 {
         })
         .collect::<Vec<(i64, i64, i64)>>();
 
-    let unique_pairs_by_distance: Vec<_> = junction_boxes
+    let unique_pairs_by_distance = junction_boxes
         .iter()
+        .copied()
         .combinations(2)
         .sorted_by_key(|pair| {
             let a = pair[0];
@@ -98,21 +137,9 @@ fn connect_junction_boxes(input: &str, limit: usize) -> i64 {
             x * x + y * y + z * z
         })
         .map(|pair| (pair[0], pair[1]))
-        .take(limit) //assumes that if we try to connect boxes already in a circuit, it counts as a 'connection'
         .collect();
 
-    let mut union_find = UnionFind::new();
-    for (a, b) in unique_pairs_by_distance {
-        union_find.union(a, b);
-    }
-
-    union_find
-        .get_component_sizes()
-        .iter()
-        .sorted()
-        .rev()
-        .take(3)
-        .product()
+    (unique_pairs_by_distance, junction_boxes.len())
 }
 
 #[cfg(test)]
@@ -129,6 +156,17 @@ mod tests {
     fn part_1() {
         let input = fs::read_to_string("inputs/day08.txt").unwrap();
         assert_eq!(day08::connect_junction_boxes(input.as_str(), 1000), 47040)
+    }
+
+    #[test]
+    fn can_connect_junction_boxes_into_one_circuit_for_sample_input() {
+        assert_eq!(day08::connect_to_one_circuit(SAMPLE_INPUT), 25272)
+    }
+
+    #[test]
+    fn part_2() {
+        let input = fs::read_to_string("inputs/day08.txt").unwrap();
+        assert_eq!(day08::connect_to_one_circuit(input.as_str()), 4884971896)
     }
 
     const SAMPLE_INPUT: &str = "162,817,812
